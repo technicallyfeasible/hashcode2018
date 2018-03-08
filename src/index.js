@@ -4,8 +4,8 @@ import { getFilesInFolder, readIn, writeOut } from './utils/file';
 import { simulate } from './simulation';
 import { pickNextRide } from './algorithm/naive';
 
-// const files = getFilesInFolder('./data_extended');
-const files = ['./data_extended/b_should_be_easy.in'];
+const files = getFilesInFolder('./data');
+// const files = ['./data/b_should_be_easy.in'];
 let overallPoints = 0;
 let overallMaxPoints = 0;
 
