@@ -1,0 +1,19 @@
+{
+  "name": "Hashcode",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "nodemon"
+  },
+  "devDependencies": {
+    "babel-core": "^6.26.0",
+    "babel-preset-env": "^1.6.1",
+    "babel-preset-stage-0": "^6.24.1",
+    "babel-register": "^6.26.0",
+    "nodemon": "^1.17.1"
+  },
+  "dependencies": {
+    "lodash": "^4.17.5"
+  }
+}
