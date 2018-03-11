@@ -1,5 +1,13 @@
 import { distance } from './vector';
+import { error, info } from './log';
 
+
+const modes = {
+  EMPTY: 'EMPTY',
+  MOVE_TO_START: 'MOVE_TO_START',
+  MOVE_TO_END: 'MOVE_TO_END',
+  WAITING: 'WAITING',
+};
 
 export function calculatePoints(time, position, ride, context) {
   const { bonus } = context;
@@ -21,6 +29,22 @@ export function calculatePoints(time, position, ride, context) {
   }
 
   return points;
+}
+
+export function calculatePointsForAll(time, position, rides, context) {
+  const finalLocation = rides.reduce((location, ride) => {
+    const { points: currentPoints } = location;
+
+    const points = calculatePoints(location.time, location.position, ride, context);
+    const nextLocation = advanceRide(location, ride);
+    nextLocation.points = currentPoints + points;
+    return nextLocation;
+  }, {
+    time,
+    position,
+    points: 0,
+  });
+  return finalLocation.points;
 }
 
 /**
@@ -53,4 +77,45 @@ export function removeRide(allRides, rides) {
     allRides[index].index = index;
   }
   return allRides;
+}
+
+/**
+ * Get the time when the car has finished its current ride
+ * @param time
+ * @param car
+ */
+export function getLocationAtRideFinish(time, car) {
+  const { mode, curRide, position } = car;
+
+  if (!car.curRide) {
+    return {
+      time,
+      position,
+    };
+  }
+
+
+  switch (mode) {
+    case modes.MOVE_TO_START:
+      return advanceRide({
+        time,
+        position,
+      }, curRide);
+    case modes.WAITING:
+      return {
+        time: time + Math.max(0, curRide.earliestStart - time) + distance(curRide.start, curRide.end),
+        position: curRide.end,
+      };
+    case modes.MOVE_TO_END:
+      return {
+        time: time + distance(curRide.start, curRide.end),
+        position: curRide.end,
+      };
+    default:
+      error('Unexpected mode', mode);
+      return {
+        time,
+        position: car.position,
+      };
+  }
 }

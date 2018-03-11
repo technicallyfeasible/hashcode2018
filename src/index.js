@@ -33,8 +33,8 @@ files.forEach(filename => {
 
   const result = simulate(parsedData, {
     pickNextRide,
-    lookahead: steps / 100,
-    anxiety: steps / 50,
+    lookahead: 0,
+    anxiety: steps / 100,
   });
 
   const duration = (Date.now() - start);

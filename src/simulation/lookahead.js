@@ -2,7 +2,13 @@ import { map } from 'lodash';
 
 import { info, debug, error } from '../utils/log';
 import { distance, move, equals } from '../utils/vector';
-import { calculatePoints, advanceRide, removeRide } from '../utils/points';
+import {
+  calculatePoints,
+  calculatePointsForAll,
+  advanceRide,
+  removeRide,
+  getLocationAtRideFinish,
+} from '../utils/points';
 
 
 const modes = {
@@ -58,8 +64,13 @@ export function simulate(parsedData, options) {
   }));
 
   let totalPoints = 0;
+  let missedRidesCount = 0;
+  let missedRidesPoints = 0;
+  let notSavedRidesCount = 0;
+  let savedRidesCount = 0;
 
   const ridesToRemove = [];
+  let maxNextRides = 0;
 
   let nextRideDelta = 0;
   let time = 0;
@@ -67,8 +78,9 @@ export function simulate(parsedData, options) {
     nextRideDelta = null;
 
     let ridesDone = 0;
-    removeRide(context.rideData, ridesToRemove);
-    ridesToRemove.length = 0;
+    // removeRide(context.rideData, ridesToRemove);
+    // let ridesChanged = ridesToRemove.length > 0;
+    // ridesToRemove.length = 0;
 
     // loop over all cars and add the next ride until no more rides can be assigned
     // this is so we don't favour any particular car and distribute the rides better
@@ -106,24 +118,53 @@ export function simulate(parsedData, options) {
       });
     } while (needRides);
 
-    removeRide(context.rideData, ridesToRemove);
-    ridesToRemove.length = 0;
+    // removeRide(context.rideData, ridesToRemove);
+    // ridesChanged = ridesChanged || ridesToRemove.length > 0;
+    // ridesToRemove.length = 0;
 
-    // look for all rides that would finish in time + extraSteps and have not been assigned a car
-    const missedRides = remainingRides.reduce((rides, ride) => {
-      if (!ride.car && ride.latestEnd < time + anxietySteps) {
-        rides.push(ride);
+    // if (ridesChanged) {
+      // look for all rides that would finish in time + extraSteps and have not been assigned a car
+      const missedRides = remainingRides.reduce((rides, ride) => {
+        if (!ride.car && ride.latestEnd > time && ride.latestEnd < time + anxietySteps) {
+          rides.push(ride);
+        }
+        return rides;
+      }, []);
+      if (missedRides.length > 0) {
+        // check whether any car can still take one of the missing ones
+        missedRides.forEach(ride => {
+          // add the missed ride into each car's next ride array and calculate the points up to that ride
+          let maxPoints = 0;
+          let maxCar = null;
+          let maxIndex = null;
+          cars.forEach((car, carIndex) => {
+            const location = getLocationAtRideFinish(time, car);
+            const points = calculatePoints(location.time, location.position, ride, context);
+            if (points > maxPoints) {
+              maxPoints = points;
+              maxCar = car;
+              maxIndex = carIndex;
+            }
+          });
+
+          if (maxCar) {
+            debug(time, 'Best car:', maxPoints);
+            savedRidesCount++;
+            for (let i = 0; i < maxCar.nextRides.length; i++) {
+              // reset the car assignment
+              maxCar.nextRides[i].car = null;
+            }
+            ride.car = maxIndex;
+            maxCar.nextRides.length = 0;
+            maxCar.nextRides.push(ride);
+            maxCar.nextFinish = advanceRide(getLocationAtRideFinish(time, maxCar), ride);
+          } else {
+            debug(time, 'No best');
+            notSavedRidesCount++;
+          }
+        });
       }
-      return rides;
-    }, []);
-    if (missedRides.length > 0) {
-      // info(time, 'Missed:', missedRides.length);
-      // TODO check whether any car can still take one of the missing ones
-      missedRides.forEach(ride => {
-        // add the missed ride into each car's next ride array and calculate the points up to that ride
-
-      });
-    }
+    // }
 
     cars.forEach((car, carIndex) => {
       const { position, rides, nextRides, nextFinish } = car;
@@ -132,6 +173,7 @@ export function simulate(parsedData, options) {
       if (!curRide) {
         let nextRide;
         if (nextRides.length > 0) {
+          if (nextRides.length > maxNextRides) maxNextRides = nextRides.length;
           nextRide = nextRides.shift();
         } else {
           // the lookahead might be too short to have the list populated so try and get one now
@@ -151,6 +193,10 @@ export function simulate(parsedData, options) {
           const points = calculatePoints(time, position, nextRide, context);
           debug(time, carIndex, 'Points:', nextRide.index, points);
           totalPoints += points;
+          if (points === 0) {
+            missedRidesCount++;
+            missedRidesPoints += distance(nextRide.start, nextRide.end) + bonus;
+          }
         } else {
           // no more rides
           ridesDone += rides.length;
@@ -229,8 +275,14 @@ export function simulate(parsedData, options) {
   }
 
   const maxPoints = rideData.reduce((points, ride) => {
+    if (!ride.car) missedRidesCount++;
     return points + bonus + distance(ride.start, ride.end);
   }, 0);
+
+  info('Max rides ahead:', maxNextRides);
+  info('Saved rides:', savedRidesCount);
+  info('Not saved rides:', notSavedRidesCount);
+  info('Missed rides:', missedRidesCount, 'Points:', missedRidesPoints);
 
   return {
     cars,
