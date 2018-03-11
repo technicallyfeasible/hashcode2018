@@ -1,6 +1,8 @@
-import { debug, error } from './utils/log';
-import { distance, move, equals } from './utils/vector';
 import { map } from 'lodash';
+
+import { debug, error } from '../utils/log';
+import { distance, move, equals } from '../utils/vector';
+import { calculatePoints } from '../utils/points';
 
 
 const modes = {
@@ -10,28 +12,6 @@ const modes = {
   WAITING: 'WAITING',
 };
 
-
-function calculatePoints(time, position, ride, context) {
-  const { bonus } = context;
-  const { earliestStart, latestEnd } = ride;
-
-  const distanceToRide = distance(position, ride.start);
-  const waitingTime = earliestStart - distanceToRide - time;
-  const adjustedWaitingTime = Math.max(0, waitingTime);
-  const lengthOfRide = distance(ride.start, ride.end);
-
-  const totalTime = distanceToRide + adjustedWaitingTime + lengthOfRide;
-
-  let points = 0;
-  if (time + totalTime < latestEnd) {
-    points += lengthOfRide;
-  }
-  if (waitingTime >= 0) {
-    points += bonus;
-  }
-
-  return points;
-}
 
 export function simulate(parsedData, options) {
   const {
@@ -68,11 +48,12 @@ export function simulate(parsedData, options) {
       let { mode, curRide } = car;
 
       if (!curRide) {
-        const nextRide = pickNextRide(carIndex, time, position, parsedData);
+        const nextRide = pickNextRide(time, position, parsedData);
         if (nextRide) {
           debug(time, carIndex, 'Ride:', nextRide.index);
           curRide = nextRide;
           mode = modes.MOVE_TO_START;
+          nextRide.car = carIndex;
           car.rides.push(nextRide.index);
           const points = calculatePoints(time, position, nextRide, parsedData);
           debug(time, carIndex, 'Points:', nextRide.index, points);

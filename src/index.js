@@ -1,11 +1,13 @@
 import { info } from './utils/log';
 import { parse } from './utils/data';
 import { getFilesInFolder, readIn, writeOut } from './utils/file';
-import { simulate } from './simulation';
-import { pickNextRide } from './algorithm/naive';
+import { simulate } from './simulation/simple';
+import { pickNextRide } from './algorithm/lookahead';
 
-const files = getFilesInFolder('./data');
-// const files = ['./data/b_should_be_easy.in'];
+// const files = getFilesInFolder('./data');
+const files = ['./data/b_should_be_easy.in'];
+// const files = ['./data/c_no_hurry.in'];
+// const files = ['./data/d_metropolis.in'];
 let overallPoints = 0;
 let overallMaxPoints = 0;
 
@@ -28,6 +30,7 @@ files.forEach(filename => {
 
   const result = simulate(parsedData, {
     pickNextRide,
+    lookahead: 1,
   });
 
   const { totalPoints, maxPoints, cars } = result;

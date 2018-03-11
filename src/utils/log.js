@@ -1,8 +1,8 @@
-const level = 1;
-
 const DEBUG = 2;
 const INFO = 1;
 const ERROR = 0;
+
+const level = INFO;
 
 export function debug(...args) {
   if (level >= DEBUG) {

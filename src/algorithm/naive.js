@@ -1,7 +1,7 @@
 import { scoreRideWastedTime } from './scoring';
 
 
-export function pickNextRide(car, time, position, context) {
+export function pickNextRide(time, position, context) {
   const { rideData } = context;
 
   const nextRide = rideData.reduce((bestRide, ride) => {
@@ -24,9 +24,5 @@ export function pickNextRide(car, time, position, context) {
   });
 
   const { ride } = nextRide;
-  if (ride !== null) {
-    ride.car = car;
-    return ride;
-  }
-  return null;
+  return ride;
 }

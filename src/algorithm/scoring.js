@@ -29,7 +29,7 @@ export function scoreRideTotalTime(time, position, ride, context) {
     points += bonus;
   }
 
-  return points / (wastedTime * wastedTime + 1);
+  return points / totalTime;
 }
 
 
@@ -56,6 +56,37 @@ export function scoreRideWastedTime(time, position, ride, context) {
   let points = 0;
   if (time + totalTime < latestEnd) {
     points += lengthOfRide;
+  }
+  if (waitingTime >= 0) {
+    points += bonus;
+  }
+
+  return points / (wastedTime * wastedTime + 1);
+}
+
+/**
+ * Assigns equal points to rides regardless of length to remove bias when there are a few very long rides
+ * @param time
+ * @param position
+ * @param ride
+ * @param context
+ * @return {number}
+ */
+export function scoreRideEqualPoints(time, position, ride, context) {
+  const { bonus } = context;
+  const { earliestStart, latestEnd } = ride;
+
+  const distanceToRide = distance(position, ride.start);
+  const waitingTime = earliestStart - distanceToRide - time;
+  const adjustedWaitingTime = Math.max(0, waitingTime);
+  const lengthOfRide = distance(ride.start, ride.end);
+
+  const wastedTime = distanceToRide + adjustedWaitingTime;
+  const totalTime = wastedTime + lengthOfRide;
+
+  let points = 0;
+  if (time + totalTime < latestEnd) {
+    points += 200;
   }
   if (waitingTime >= 0) {
     points += bonus;
