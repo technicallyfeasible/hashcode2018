@@ -1,13 +1,14 @@
 import { info } from './utils/log';
 import { parse } from './utils/data';
 import { getFilesInFolder, readIn, writeOut } from './utils/file';
-import { simulate } from './simulation/simple';
-import { pickNextRide } from './algorithm/lookahead';
+import { simulate } from './simulation/lookahead';
+import { pickNextRide } from './algorithm/naive';
 
 // const files = getFilesInFolder('./data');
-const files = ['./data/b_should_be_easy.in'];
+// const files = ['./data/a_example.in'];
+// const files = ['./data/b_should_be_easy.in'];
 // const files = ['./data/c_no_hurry.in'];
-// const files = ['./data/d_metropolis.in'];
+const files = ['./data/d_metropolis.in'];
 let overallPoints = 0;
 let overallMaxPoints = 0;
 
@@ -28,10 +29,16 @@ files.forEach(filename => {
   console.log('Bonus:', bonus);
   console.log('Steps:', steps);
 
+  const start = Date.now();
+
   const result = simulate(parsedData, {
     pickNextRide,
-    lookahead: 1,
+    lookahead: steps / 100,
+    anxiety: steps / 50,
   });
+
+  const duration = (Date.now() - start);
+  info('Duration:', `${(duration / 1000).toFixed(1)}s`);
 
   const { totalPoints, maxPoints, cars } = result;
 

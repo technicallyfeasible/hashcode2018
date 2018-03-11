@@ -1,4 +1,4 @@
-import { scoreRideWastedTime } from './scoring';
+import { scoreRideEqualPoints } from './scoring';
 
 
 export function pickNextRide(time, position, context) {
@@ -10,7 +10,7 @@ export function pickNextRide(time, position, context) {
     const { score: lastScore } = bestRide;
 
     // this ride is free
-    const score = scoreRideWastedTime(time, position, ride, context);
+    const score = scoreRideEqualPoints(time, position, ride, context);
     // the score did not improve so just leave it
     if (bestRide.ride && score <= lastScore) return bestRide;
 

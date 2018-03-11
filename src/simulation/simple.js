@@ -2,7 +2,7 @@ import { map } from 'lodash';
 
 import { debug, error } from '../utils/log';
 import { distance, move, equals } from '../utils/vector';
-import { calculatePoints } from '../utils/points';
+import { calculatePoints, removeRide } from '../utils/points';
 
 
 const modes = {
@@ -24,6 +24,12 @@ export function simulate(parsedData, options) {
 
   const { pickNextRide } = options;
 
+  const remainingRides = rideData.map(ride => ({ ...ride }));
+  const context = {
+    ...parsedData,
+    rideData: remainingRides,
+  };
+
   const cars = map(Array(numCars), () => ({
     position: {
       row: 0,
@@ -36,26 +42,33 @@ export function simulate(parsedData, options) {
 
   let totalPoints = 0;
 
+  const ridesToRemove = [];
+
   let nextRideDelta = 0;
   let time = 0;
   while (time < steps) {
     nextRideDelta = null;
 
     let ridesDone = 0;
+    removeRide(context.rideData, ridesToRemove);
+    ridesToRemove.length = 0;
 
     cars.forEach((car, carIndex) => {
       const { position, rides } = car;
       let { mode, curRide } = car;
 
       if (!curRide) {
-        const nextRide = pickNextRide(time, position, parsedData);
+        const nextRide = pickNextRide(time, position, context);
         if (nextRide) {
+          // mark as taken and remove from the available rides list
+          nextRide.car = carIndex;
+          ridesToRemove.push(nextRide.index);
+
           debug(time, carIndex, 'Ride:', nextRide.index);
           curRide = nextRide;
           mode = modes.MOVE_TO_START;
-          nextRide.car = carIndex;
           car.rides.push(nextRide.index);
-          const points = calculatePoints(time, position, nextRide, parsedData);
+          const points = calculatePoints(time, position, nextRide, context);
           debug(time, carIndex, 'Points:', nextRide.index, points);
           totalPoints += points;
         } else {

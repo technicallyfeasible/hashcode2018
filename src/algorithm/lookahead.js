@@ -1,4 +1,4 @@
-import { scoreRideEqualPoints, scoreRideWastedTime } from './scoring';
+import { scoreRideEqualPoints } from './scoring';
 import { distance } from '../utils/vector';
 
 

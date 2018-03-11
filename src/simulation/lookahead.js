@@ -1,8 +1,8 @@
 import { map } from 'lodash';
 
-import { debug, error } from '../utils/log';
+import { info, debug, error } from '../utils/log';
 import { distance, move, equals } from '../utils/vector';
-import { calculatePoints } from '../utils/points';
+import { calculatePoints, advanceRide, removeRide } from '../utils/points';
 
 
 const modes = {
@@ -11,19 +11,6 @@ const modes = {
   MOVE_TO_END: 'MOVE_TO_END',
   WAITING: 'WAITING',
 };
-
-/**
- * Add the duration of ride to the total and return it
- * @param agg {{ time, position }}
- * @param position
- * @param ride
- */
-function addRideDuration(agg, ride) {
-  const { time, position } = agg;
-  const distanceToRide = distance(position, ride.start);
-
-  // return total +
-}
 
 export function simulate(parsedData, options) {
   const {
@@ -34,11 +21,23 @@ export function simulate(parsedData, options) {
     rideData,
   } = parsedData;
 
+  const remainingRides = rideData.map(ride => ({ ...ride }));
+  const context = {
+    ...parsedData,
+    rideData: remainingRides,
+  };
+
   const {
     pickNextRide,
-    // how many rides to get additionally
+    // how many steps to look ahead
     lookahead = 0,
+    // how many steps to look ahead to make sure we don't lose rides
+    anxiety,
   } = options;
+  const extraSteps = Math.round(lookahead);
+  const anxietySteps = typeof anxiety !== 'number' ? extraSteps : Math.round(anxiety);
+  info('Lookahead:', extraSteps);
+  info('Anxiety:', anxietySteps);
 
   const cars = map(Array(numCars), () => ({
     position: {
@@ -49,9 +48,18 @@ export function simulate(parsedData, options) {
     curRide: null,
     rides: [],
     nextRides: [],
+    nextFinish: {
+      position: {
+        row: 0,
+        col: 0,
+      },
+      time: 0,
+    },
   }));
 
   let totalPoints = 0;
+
+  const ridesToRemove = [];
 
   let nextRideDelta = 0;
   let time = 0;
@@ -59,38 +67,88 @@ export function simulate(parsedData, options) {
     nextRideDelta = null;
 
     let ridesDone = 0;
+    removeRide(context.rideData, ridesToRemove);
+    ridesToRemove.length = 0;
+
+    // loop over all cars and add the next ride until no more rides can be assigned
+    // this is so we don't favour any particular car and distribute the rides better
+    let needRides;
+    do {
+      needRides = false;
+      cars.forEach((car, carIndex) => {
+        const { nextRides } = car;
+        let { nextFinish } = car;
+
+        // check whether this car is done
+        debug(time, carIndex, 'Finish:', nextFinish.time, time + extraSteps);
+        if (nextFinish.time >= time + extraSteps) {
+          return;
+        }
+
+        const { time: nextTime, position: nextPosition } = nextFinish;
+        const ride = pickNextRide(nextTime, nextPosition, context);
+        // no more rides available so just stop
+        if (!ride) {
+          return;
+        }
+
+        nextFinish = advanceRide(nextFinish, ride);
+        debug(time, carIndex, 'Next:', ride.index, nextFinish);
+        // mark the ride as taken
+        ride.car = carIndex;
+        nextRides.push(ride);
+        car.nextFinish = nextFinish;
+
+        ridesToRemove.push(ride.index);
+
+        // indicate we need to loop again
+        needRides = true;
+      });
+    } while (needRides);
+
+    removeRide(context.rideData, ridesToRemove);
+    ridesToRemove.length = 0;
+
+    // look for all rides that would finish in time + extraSteps and have not been assigned a car
+    const missedRides = remainingRides.reduce((rides, ride) => {
+      if (!ride.car && ride.latestEnd < time + anxietySteps) {
+        rides.push(ride);
+      }
+      return rides;
+    }, []);
+    if (missedRides.length > 0) {
+      // info(time, 'Missed:', missedRides.length);
+      // TODO check whether any car can still take one of the missing ones
+      missedRides.forEach(ride => {
+        // add the missed ride into each car's next ride array and calculate the points up to that ride
+
+      });
+    }
 
     cars.forEach((car, carIndex) => {
-      const { position, rides, nextRides } = car;
+      const { position, rides, nextRides, nextFinish } = car;
       let { mode, curRide } = car;
 
       if (!curRide) {
-        while(nextRides.length < lookahead + 1) {
-          let nextTime;
-          let nextPosition;
-          // choose either the car's current position or the ending position of the last ride in the list
-          if (nextRides.length > 0) {
-            nextTime = nextRides.reduce(addRideDuration, { time, position });
-            nextPosition = nextRides[nextRides.length - 1].end;
-          } else {
-            nextTime = time;
-            nextPosition = position;
-          }
-          const ride = pickNextRide(carIndex, nextTime, nextPosition, parsedData);
-          nextRides.push(ride);
-        }
-
         let nextRide;
-        if (car.nextRides.length > 0) {
-          nextRide = car.nextRides.shift();
+        if (nextRides.length > 0) {
+          nextRide = nextRides.shift();
+        } else {
+          // the lookahead might be too short to have the list populated so try and get one now
+          nextRide = pickNextRide(time, position, context);
+          if (nextRide) {
+            // mark the ride as taken and advance finishing time
+            nextRide.car = carIndex;
+            ridesToRemove.push(nextRide.index);
+            car.nextFinish = advanceRide(nextFinish, nextRide);
+          }
         }
-        const nextRide = pickNextRide(carIndex, time, position, parsedData);
         if (nextRide) {
           debug(time, carIndex, 'Ride:', nextRide.index);
           curRide = nextRide;
           mode = modes.MOVE_TO_START;
           car.rides.push(nextRide.index);
-          const points = calculatePoints(time, position, nextRide, parsedData);
+          const points = calculatePoints(time, position, nextRide, context);
           debug(time, carIndex, 'Points:', nextRide.index, points);
           totalPoints += points;
         } else {

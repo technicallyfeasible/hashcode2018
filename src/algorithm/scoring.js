@@ -86,10 +86,46 @@ export function scoreRideEqualPoints(time, position, ride, context) {
 
   let points = 0;
   if (time + totalTime < latestEnd) {
-    points += 200;
+    points += 400;
   }
   if (waitingTime >= 0) {
     points += bonus;
+  }
+
+  return points / (wastedTime * wastedTime + 1);
+}
+
+/**
+ * Assigns extra points to rides that would be missed in a configurable time interval if not taken
+ * @param time
+ * @param position
+ * @param ride
+ * @param context
+ * @return {number}
+ */
+export function scoreRideAnxiety(time, position, ride, context) {
+  const { bonus, steps } = context;
+  const { earliestStart, latestEnd } = ride;
+
+  const ANXIETY_STEPS = 1000; // steps / 1000;
+
+  const distanceToRide = distance(position, ride.start);
+  const waitingTime = earliestStart - distanceToRide - time;
+  const adjustedWaitingTime = Math.max(0, waitingTime);
+  const lengthOfRide = distance(ride.start, ride.end);
+
+  const wastedTime = distanceToRide + adjustedWaitingTime;
+  const totalTime = wastedTime + lengthOfRide;
+
+  let points = 0;
+  if (time + totalTime < latestEnd) {
+    points += 400;
+  }
+  if (waitingTime >= 0) {
+    points += bonus;
+  }
+  if (time + ANXIETY_STEPS > latestEnd) {
+    points *= 2;
   }
 
   return points / (wastedTime * wastedTime + 1);
